@@ -3,6 +3,7 @@
 const { program } = require('commander');
 const { fetchMarkets } = require('./fetchMarkets');
 const { scoreOpportunities } = require('./analyzer');
+const { detectArbitrage } = require('./arbitrageDetector');
 
 program
   .name('polymarket-scanner')
@@ -66,6 +67,53 @@ program
         console.log(`   Category: ${m.category || 'N/A'}`);
         console.log('');
       });
+    } catch (error) {
+      console.error('Error:', error.message);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('arb')
+  .description('Detect arbitrage opportunities')
+  .option('--min-volume <number>', 'Minimum 24h volume', parseFloat, 1000)
+  .option('--limit <number>', 'Markets to analyze', (val) => parseInt(val, 10), 200)
+  .option('--json', 'Output as JSON')
+  .action(async (options) => {
+    try {
+      console.log('Fetching markets for arbitrage analysis...');
+      
+      const markets = await fetchMarkets({
+        activeOnly: true,
+        minVolume: options.minVolume,
+        limit: options.limit
+      });
+
+      console.log(`Analyzing ${markets.length} markets...\n`);
+
+      const opportunities = detectArbitrage(markets);
+
+      if (options.json) {
+        console.log(JSON.stringify(opportunities, null, 2));
+      } else {
+        if (opportunities.length === 0) {
+          console.log('No arbitrage opportunities found.');
+        } else {
+          console.log(`🎯 Found ${opportunities.length} Arbitrage Opportunities\n`);
+          
+          opportunities.slice(0, 10).forEach((opp, i) => {
+            console.log(`${i + 1}. ${opp.type.toUpperCase()} - Edge: ${opp.edge}%`);
+            console.log(`   Event: ${opp.eventName}`);
+            console.log(`   Total Probability: ${opp.totalProb}%`);
+            console.log(`   Combined Volume: $${opp.volume24hr.toLocaleString()}`);
+            console.log('   Markets:');
+            opp.markets.forEach(m => {
+              console.log(`     - ${m.question}: ${(m.yesPrice * 100).toFixed(2)}%`);
+            });
+            console.log('');
+          });
+        }
+      }
     } catch (error) {
       console.error('Error:', error.message);
       process.exit(1);
