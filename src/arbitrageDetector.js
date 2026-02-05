@@ -3,16 +3,51 @@
  */
 
 /**
+ * Check if a market is a range/bucket market
+ * @param {string} question - Market question
+ * @returns {boolean} True if range/bucket market
+ */
+function isRangeMarket(question) {
+  const questionLower = question.toLowerCase();
+  
+  // Keywords that indicate range/bucket markets
+  const rangeKeywords = [
+    'less than',
+    'more than',
+    'greater than',
+    'between',
+    'under',
+    'over'
+  ];
+  
+  // Check for range keywords
+  if (rangeKeywords.some(keyword => questionLower.includes(keyword))) {
+    return true;
+  }
+  
+  // Check for bucket range pattern: $10b-$20b, $5m-$10m, $1t-$2t
+  const bucketPattern = /\$\d+[bmt]-\$\d+[bmt]/i;
+  if (bucketPattern.test(question)) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * Find related markets that might have arbitrage opportunities
  * @param {array} markets - Array of market data
  * @returns {array} Potential arbitrage opportunities
  */
 function detectArbitrage(markets) {
+  // Filter out range/bucket markets to prevent false positives
+  const nonRangeMarkets = markets.filter(m => !isRangeMarket(m.question));
+  
   const opportunities = [];
 
   // Strategy 1: Same event, different outcomes
   // Example: "Team A wins" + "Team B wins" should sum to ~100%
-  const eventGroups = groupByEvent(markets);
+  const eventGroups = groupByEvent(nonRangeMarkets);
   
   for (const [eventName, eventMarkets] of Object.entries(eventGroups)) {
     if (eventMarkets.length < 2) continue;
@@ -59,7 +94,8 @@ function detectArbitrage(markets) {
 
   // Strategy 2: Contradictory markets
   // Example: "X happens by Feb" at 30% + "X doesn't happen by Feb" at 80%
-  const contradictions = findContradictions(markets);
+  // Use filtered markets to avoid false positives from range markets
+  const contradictions = findContradictions(nonRangeMarkets);
   opportunities.push(...contradictions);
 
   // Sort by edge size
@@ -204,5 +240,6 @@ function calculateTextOverlap(s1, s2) {
 module.exports = {
   detectArbitrage,
   groupByEvent,
-  findContradictions
+  findContradictions,
+  isRangeMarket
 };
