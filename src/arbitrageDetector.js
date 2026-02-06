@@ -35,44 +35,21 @@ function isRangeMarket(question) {
 }
 
 /**
- * Check if a market should be excluded from arbitrage detection
- * @param {string} question - Market question
- * @returns {boolean} True if should be excluded
- */
-function shouldExcludeMarket(question) {
-  const questionLower = question.toLowerCase();
-  
-  // Keywords that produce false positives (not real arbitrage)
-  const excludeKeywords = [
-    'perform',           // Super Bowl performers, concert lineups
-    'halftime show',     // Super Bowl halftime performers
-    'headline',          // Festival headliners
-    'lineup',            // Concert/festival lineups
-    'opening act',       // Concert openers
-    'surprise guest'     // Special appearances
-  ];
-  
-  return excludeKeywords.some(keyword => questionLower.includes(keyword));
-}
-
-/**
  * Find related markets that might have arbitrage opportunities
  * @param {array} markets - Array of market data
  * @returns {array} Potential arbitrage opportunities
  */
 function detectArbitrage(markets) {
-  // Filter out markets that produce false positives
-  const validMarkets = markets.filter(m => !shouldExcludeMarket(m.question));
-  
   // NOTE: Removed isRangeMarket() filter to allow bucket market analysis
   // Bucket markets (e.g., DOGE spending $50-100b, $100-150b) are mutually 
   // exclusive and should be analyzed for consistency
+  // const nonRangeMarkets = markets.filter(m => !isRangeMarket(m.question));
   
   const opportunities = [];
 
   // Strategy 1: Same event, different outcomes
   // Example: "Team A wins" + "Team B wins" should sum to ~100%
-  const eventGroups = groupByEvent(validMarkets);
+  const eventGroups = groupByEvent(markets);
   
   for (const [eventName, eventMarkets] of Object.entries(eventGroups)) {
     if (eventMarkets.length < 2) continue;
@@ -119,8 +96,8 @@ function detectArbitrage(markets) {
 
   // Strategy 2: Contradictory markets
   // Example: "X happens by Feb" at 30% + "X doesn't happen by Feb" at 80%
-  // Use filtered markets to avoid false positives
-  const contradictions = findContradictions(validMarkets);
+  // Use filtered markets to avoid false positives from range markets
+  const contradictions = findContradictions(markets);
   opportunities.push(...contradictions);
 
   // Sort by edge size
@@ -331,6 +308,5 @@ module.exports = {
   detectArbitrage,
   groupByEvent,
   findContradictions,
-  isRangeMarket,
-  shouldExcludeMarket
+  isRangeMarket
 };
