@@ -40,14 +40,16 @@ function isRangeMarket(question) {
  * @returns {array} Potential arbitrage opportunities
  */
 function detectArbitrage(markets) {
-  // Filter out range/bucket markets to prevent false positives
-  const nonRangeMarkets = markets.filter(m => !isRangeMarket(m.question));
+  // NOTE: Removed isRangeMarket() filter to allow bucket market analysis
+  // Bucket markets (e.g., DOGE spending $50-100b, $100-150b) are mutually 
+  // exclusive and should be analyzed for consistency
+  // const nonRangeMarkets = markets.filter(m => !isRangeMarket(m.question));
   
   const opportunities = [];
 
   // Strategy 1: Same event, different outcomes
   // Example: "Team A wins" + "Team B wins" should sum to ~100%
-  const eventGroups = groupByEvent(nonRangeMarkets);
+  const eventGroups = groupByEvent(markets);
   
   for (const [eventName, eventMarkets] of Object.entries(eventGroups)) {
     if (eventMarkets.length < 2) continue;
@@ -95,7 +97,7 @@ function detectArbitrage(markets) {
   // Strategy 2: Contradictory markets
   // Example: "X happens by Feb" at 30% + "X doesn't happen by Feb" at 80%
   // Use filtered markets to avoid false positives from range markets
-  const contradictions = findContradictions(nonRangeMarkets);
+  const contradictions = findContradictions(markets);
   opportunities.push(...contradictions);
 
   // Sort by edge size
