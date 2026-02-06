@@ -35,6 +35,31 @@ function isRangeMarket(question) {
 }
 
 /**
+ * Check if a market is about performers/lineups (entertainment booking-style markets)
+ * @param {string} question - Market question
+ * @returns {boolean} True if performer/lineup market
+ */
+function isPerformerLineupMarket(question) {
+  const questionLower = (question || '').toLowerCase().replace(/[–—]/g, '-');
+
+  const keywordPhrases = [
+    'halftime show',
+    'headline',
+    'lineup',
+    'opening act',
+    'surprise guest'
+  ];
+
+  if (keywordPhrases.some(phrase => questionLower.includes(phrase))) {
+    return true;
+  }
+
+  // Match "perform" as a word (avoid matching words like "outperform")
+  const performPattern = /\bperform(?:s|ed|ing)?\b|\bperformer\b|\bperformance\b/;
+  return performPattern.test(questionLower);
+}
+
+/**
  * Find related markets that might have arbitrage opportunities
  * @param {array} markets - Array of market data
  * @returns {array} Potential arbitrage opportunities
@@ -47,9 +72,11 @@ function detectArbitrage(markets) {
   
   const opportunities = [];
 
+  const nonPerformerMarkets = markets.filter(m => !isPerformerLineupMarket(m.question));
+
   // Strategy 1: Same event, different outcomes
   // Example: "Team A wins" + "Team B wins" should sum to ~100%
-  const eventGroups = groupByEvent(markets);
+  const eventGroups = groupByEvent(nonPerformerMarkets);
   
   for (const [eventName, eventMarkets] of Object.entries(eventGroups)) {
     if (eventMarkets.length < 2) continue;
@@ -97,7 +124,7 @@ function detectArbitrage(markets) {
   // Strategy 2: Contradictory markets
   // Example: "X happens by Feb" at 30% + "X doesn't happen by Feb" at 80%
   // Use filtered markets to avoid false positives from range markets
-  const contradictions = findContradictions(markets);
+  const contradictions = findContradictions(nonPerformerMarkets);
   opportunities.push(...contradictions);
 
   // Sort by edge size
@@ -308,5 +335,6 @@ module.exports = {
   detectArbitrage,
   groupByEvent,
   findContradictions,
-  isRangeMarket
+  isRangeMarket,
+  isPerformerLineupMarket
 };
