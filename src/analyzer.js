@@ -35,8 +35,14 @@ function analyzeValue(market) {
   const spread = Math.abs(totalProb - 100);
 
   // Volume/liquidity ratio (higher = more tradeable)
-  const liquidity = market.liquidityNum || market.liquidity || 1;
-  const volumeLiquidityRatio = market.volume24hr / liquidity;
+  const liquidityRaw = market.liquidityNum ?? market.liquidity;
+  const liquidityNum = Number(liquidityRaw);
+  const liquidity = Number.isFinite(liquidityNum) && liquidityNum > 0 ? liquidityNum : 1;
+
+  const volume24hrNum = Number(market.volume24hr);
+  const volume24hr = Number.isFinite(volume24hrNum) && volume24hrNum > 0 ? volume24hrNum : 0;
+
+  const volumeLiquidityRatio = volume24hr / liquidity;
 
   return {
     slug: market.slug,
@@ -47,7 +53,7 @@ function analyzeValue(market) {
     yesProb: yesProb.toFixed(2) + '%',
     noProb: noProb.toFixed(2) + '%',
     spread: spread.toFixed(2) + '%',
-    volume24hr: market.volume24hr,
+    volume24hr: volume24hr,
     liquidity: liquidity,
     volumeLiquidityRatio: volumeLiquidityRatio.toFixed(2),
     endDate: market.endDate

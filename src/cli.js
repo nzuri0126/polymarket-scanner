@@ -13,7 +13,7 @@ program
 program
   .command('scan')
   .description('Scan active markets for opportunities')
-  .option('--min-volume <number>', 'Minimum 24h volume', parseFloat, 100)
+  .option('--min-volume <number>', 'Minimum 24h volume', parseFloat, 0)
   .option('--min-liquidity <number>', 'Minimum liquidity', parseFloat, 50)
   .option('--limit <number>', 'Max markets to fetch', (val) => parseInt(val, 10), 50)
   .option('--json', 'Output as JSON')
@@ -76,7 +76,7 @@ program
 program
   .command('arb')
   .description('Detect arbitrage opportunities')
-  .option('--min-volume <number>', 'Minimum 24h volume', parseFloat, 1000)
+  .option('--min-volume <number>', 'Minimum 24h volume', parseFloat, 0)
   .option('--limit <number>', 'Markets to analyze', (val) => parseInt(val, 10), 200)
   .option('--json', 'Output as JSON')
   .action(async (options) => {

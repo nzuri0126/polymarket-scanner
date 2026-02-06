@@ -15,44 +15,82 @@ async function fetchMarkets(options = {}) {
     activeOnly = true,
     minVolume = 0,
     minLiquidity = 0,
-    limit = 100
+    limit = 100,
+
+    // pagination controls
+    pageSize = 100,
+    maxPages = 2000
   } = options;
 
-  try {
-    const params = {
-      limit: Math.max(limit, 100), // Fetch more to filter
-      _t: Date.now() // Cache bust
-    };
+  const safePageSize = Math.max(1, Math.min(parseInt(pageSize, 10) || 100, 500));
+  const safeMaxPages = Math.max(1, parseInt(maxPages, 10) || 2000);
 
-    if (activeOnly) {
-      params.active = true;
-      params.closed = false;
+  try {
+    const all = [];
+    let offset = 0;
+    let exhausted = false;
+
+    for (let pageIndex = 0; pageIndex < safeMaxPages; pageIndex++) {
+      const params = {
+        limit: safePageSize,
+        offset,
+        _t: Date.now() // Cache bust
+      };
+
+      if (activeOnly) {
+        params.active = true;
+        params.closed = false;
+      }
+
+      const response = await axios.get(`${POLYMARKET_API}/markets`, {
+        params,
+        timeout: 30000
+      });
+
+      const page = response.data;
+
+      if (!Array.isArray(page)) {
+        throw new Error(`Unexpected /markets response (expected array, got ${typeof page})`);
+      }
+
+      all.push(...page);
+
+      // If we got a short (or empty) page, we've exhausted pagination
+      if (page.length < safePageSize) {
+        exhausted = true;
+        break;
+      }
+
+      offset += safePageSize;
     }
 
-    const response = await axios.get(`${POLYMARKET_API}/markets`, {
-      params,
-      timeout: 30000
-    });
+    if (!exhausted) {
+      throw new Error(`Pagination hit maxPages=${safeMaxPages} (increase maxPages to fetch more)`);
+    }
 
-    let markets = response.data;
+    const volMin = Number(minVolume) || 0;
+    const liqMin = Number(minLiquidity) || 0;
+
+    let markets = all;
 
     // Filter by volume
-    if (minVolume > 0) {
-      markets = markets.filter(m => m.volume24hr >= minVolume);
+    if (volMin > 0) {
+      markets = markets.filter((m) => (Number(m.volume24hr) || 0) >= volMin);
     }
 
     // Filter by liquidity
-    if (minLiquidity > 0) {
-      markets = markets.filter(m => m.liquidityNum >= minLiquidity);
+    if (liqMin > 0) {
+      markets = markets.filter((m) => (Number(m.liquidityNum) || 0) >= liqMin);
     }
 
     // Sort by 24h volume (descending)
-    markets.sort((a, b) => b.volume24hr - a.volume24hr);
+    markets.sort((a, b) => (Number(b.volume24hr) || 0) - (Number(a.volume24hr) || 0));
 
     // Limit results
-    markets = markets.slice(0, limit);
+    if (limit == null) return markets;
 
-    return markets;
+    const safeLimit = Math.max(0, parseInt(limit, 10) || 0);
+    return markets.slice(0, safeLimit);
   } catch (error) {
     console.error('Error fetching markets:', error.message);
     throw error;

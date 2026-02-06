@@ -136,25 +136,74 @@ function groupByEvent(markets) {
 function extractEventKey(question) {
   // Simple heuristic: extract main subject
   // Improved to group bucket markets by stripping amount/range patterns
-  
+
   // Remove common prefixes
   let key = question
     .replace(/^Will /i, '')
     .replace(/^Does /i, '')
-    .replace(/^Is /i, '');
+    .replace(/^Is /i, '')
+    .replace(/^Are /i, '')
+    .replace(/^Did /i, '')
+    .replace(/^Has /i, '')
+    .replace(/^Have /i, '');
 
-  // Strip out range/amount patterns to group bucket markets
-  // "more than $250b" / "less than $100m" / "between $150-200b" etc.
+  // Normalize unicode punctuation/operators so bucket clauses are removed consistently
   key = key
-    .replace(/\bmore than \$?\d+[kmbt]?/gi, '')
-    .replace(/\bless than \$?\d+[kmbt]?/gi, '')
-    .replace(/\bbetween \$?\d+[kmbt]?-\$?\d+[kmbt]?/gi, '')
-    .replace(/\bgreater than \$?\d+[kmbt]?/gi, '')
-    .replace(/\bunder \$?\d+[kmbt]?/gi, '')
-    .replace(/\bover \$?\d+[kmbt]?/gi, '')
-    // Remove standalone amounts like "$250b"
-    .replace(/\$\d+[kmbt]/gi, '')
-    // Clean up extra spaces
+    .replace(/\u00A0/g, ' ')
+    .replace(/[–—]/g, '-')
+    .replace(/≤/g, '<=')
+    .replace(/≥/g, '>=');
+
+  const unitSrc = '(?:m|b|t|mn|bn|million|billion|trillion)';
+  const numberSrc = '\\$?\\s*\\d{1,3}(?:,\\d{3})*(?:\\.\\d+)?';
+  const amountWithUnitSrc = `${numberSrc}\\s*${unitSrc}\\b`;
+
+  const hasUnitAmount = new RegExp(amountWithUnitSrc, 'i').test(key);
+  const hasComparatorWord = /\b(between|less\s+than|more\s+than|greater\s+than|under|over|above|below|at\s+least|at\s+most|no\s+more\s+than|no\s+less\s+than|or\s+more|or\s+less|exceed(?:s|ing)?|surpass(?:es|ing)?)\b/i.test(key);
+  const hasComparatorSymbol = /[<>]=?/.test(key);
+  const hasRangeDash = new RegExp(`${numberSrc}(?:\\s*${unitSrc})?\\s*-\\s*${numberSrc}\\s*${unitSrc}\\b`, 'i').test(key);
+  const shouldStripBuckets = hasUnitAmount && (hasComparatorWord || hasComparatorSymbol || hasRangeDash);
+
+  if (shouldStripBuckets) {
+    const stripPatterns = [
+      // between $50 and $100b / between $50b and $100b / between 50 and 100b
+      new RegExp(`\\bbetween\\s+(${numberSrc}(?:\\s*${unitSrc})?)\\s+(?:and|to)\\s+(${amountWithUnitSrc})\\b`, 'gi'),
+
+      // $50b-$100b (unit both sides)
+      new RegExp(`(${numberSrc}\\s*${unitSrc}\\b)\\s*-\\s*(${numberSrc}\\s*${unitSrc}\\b)`, 'gi'),
+
+      // $50-$100b (unit only at end) / 50-100b
+      new RegExp(`(${numberSrc})\\s*-\\s*(${amountWithUnitSrc})`, 'gi'),
+
+      // $50 to $100b (unit only at end)
+      new RegExp(`(${numberSrc})\\s+to\\s+(${amountWithUnitSrc})\\b`, 'gi'),
+
+      // < $50b, <= $50b, > $250b, >= $250b
+      new RegExp(`(?:<=|<)\\s*(${amountWithUnitSrc})`, 'gi'),
+      new RegExp(`(?:>=|>)\\s*(${amountWithUnitSrc})`, 'gi'),
+
+      // verbal comparisons
+      new RegExp(`\\b(?:less\\s+than|under|below|at\\s+most|no\\s+more\\s+than)\\s+(${amountWithUnitSrc})\\b`, 'gi'),
+      new RegExp(`\\b(?:more\\s+than|over|above|greater\\s+than|at\\s+least|no\\s+less\\s+than|exceed(?:s|ing)?|surpass(?:es|ing)?)\\s+(${amountWithUnitSrc})\\b`, 'gi'),
+
+      // trailing forms: $250b+ / $250b or more / $50b or less
+      new RegExp(`(${amountWithUnitSrc})\\s*(?:\\+|\\bor\\s+more\\b|\\band\\s+up\\b)`, 'gi'),
+      new RegExp(`(${amountWithUnitSrc})\\s*(?:\\bor\\s+less\\b|\\band\\s+under\\b)`, 'gi')
+    ];
+
+    for (const pattern of stripPatterns) {
+      key = key.replace(pattern, ' ');
+    }
+
+    // Remove any remaining standalone large amounts (only with million/billion/trillion-ish units)
+    key = key.replace(new RegExp(amountWithUnitSrc, 'gi'), ' ');
+  }
+
+  // Clean up leftover comparison symbols/punctuation and extra spaces
+  key = key
+    .replace(/[<>]=?/g, ' ')
+    .replace(/[+]/g, ' ')
+    .replace(/[?.,:;()\[\]{}]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -162,6 +211,7 @@ function extractEventKey(question) {
   key = key.slice(0, 50).toLowerCase();
 
   return key;
+// ... existing code ...
 }
 
 /**
