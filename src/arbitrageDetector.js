@@ -135,13 +135,28 @@ function groupByEvent(markets) {
  */
 function extractEventKey(question) {
   // Simple heuristic: extract main subject
-  // TODO: Improve with NLP or manual mapping
+  // Improved to group bucket markets by stripping amount/range patterns
   
   // Remove common prefixes
   let key = question
     .replace(/^Will /i, '')
     .replace(/^Does /i, '')
     .replace(/^Is /i, '');
+
+  // Strip out range/amount patterns to group bucket markets
+  // "more than $250b" / "less than $100m" / "between $150-200b" etc.
+  key = key
+    .replace(/\bmore than \$?\d+[kmbt]?/gi, '')
+    .replace(/\bless than \$?\d+[kmbt]?/gi, '')
+    .replace(/\bbetween \$?\d+[kmbt]?-\$?\d+[kmbt]?/gi, '')
+    .replace(/\bgreater than \$?\d+[kmbt]?/gi, '')
+    .replace(/\bunder \$?\d+[kmbt]?/gi, '')
+    .replace(/\bover \$?\d+[kmbt]?/gi, '')
+    // Remove standalone amounts like "$250b"
+    .replace(/\$\d+[kmbt]/gi, '')
+    // Clean up extra spaces
+    .replace(/\s+/g, ' ')
+    .trim();
 
   // Take first 50 chars as key
   key = key.slice(0, 50).toLowerCase();
